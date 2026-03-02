@@ -285,7 +285,7 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
         <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
         <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
       </svg>
-      以 Google 帳號登入 (Demo體驗)
+      以 Google 帳號登入
     </button>
   </div>
 </div>
@@ -322,7 +322,7 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
     <div class="sidebar-footer">
       <div class="user-info">
         <img class="user-avatar" id="user-avatar" src="" alt="">
-        <span class="user-name" id="user-name">Demo User</span>
+        <span class="user-name" id="user-name"></span>
       </div>
       <button class="logout-btn" onclick="logout()">登出</button>
     </div>
@@ -331,7 +331,7 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
   <main class="content">
     <div class="content-inner">
       <div id="config-warning" class="config-banner" style="display:none">
-        ⚠ 提示：目前為 Demo 模式，請修改源碼底部的 firebaseConfig 以連接您的真實資料庫。
+        ⚠ 提示：請修改源碼底部的 firebaseConfig 以連接您的資料庫。
       </div>
 
       <section id="module-ai-home" class="module-section">
@@ -700,15 +700,15 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
 //  🔧 FIREBASE CONFIG — 請填入你的 Firebase 設定
 // ═══════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBazCuHFlT13pCcqQDcoyn0eGoe1BufBd8",
+  authDomain: "private-hub-1497f.firebaseapp.com",
+  projectId: "private-hub-1497f",
+  storageBucket: "private-hub-1497f.firebasestorage.app",
+  messagingSenderId: "727142558102",
+  appId: "1:727142558102:web:c7864d8980436731ead5b7",
+  measurementId: "G-K2ZJNCZT4C"
 };
 
-const IS_DEMO = firebaseConfig.apiKey === "YOUR_API_KEY";
 
 // ── Firebase SDK ──
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -728,14 +728,10 @@ import {
 let app, auth, db, storage;
 let currentUser = null;
 
-if (!IS_DEMO) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-} else {
-  document.getElementById('config-warning').style.display = 'flex';
-}
+app = initializeApp(firebaseConfig);
+auth = getAuth(app);
+db = getFirestore(app);
+storage = getStorage(app);
 
 // ══════════════════════════════
 //  STATE
@@ -817,28 +813,24 @@ async function loadAll() {
 }
 
 async function loadInsights() {
-  if (IS_DEMO) return;
   const q = query(collection(db,'insights'), where('uid','==',currentUser.uid), orderBy('createdAt','desc'));
   const snap = await getDocs(q);
   allInsights = snap.docs.map(d => ({ id:d.id, ...d.data() }));
 }
 
 async function loadNovels() {
-  if (IS_DEMO) return;
   const q = query(collection(db,'novels'), where('uid','==',currentUser.uid), orderBy('createdAt','desc'));
   const snap = await getDocs(q);
   allNovels = snap.docs.map(d => ({ id:d.id, ...d.data() }));
 }
 
 async function loadCategories() {
-  if (IS_DEMO) return;
   const q = query(collection(db,'aiCategories'), where('uid','==',currentUser.uid), orderBy('name'));
   const snap = await getDocs(q);
   aiCategories = snap.docs.map(d => ({ id:d.id, ...d.data() }));
 }
 
 async function loadGenres() {
-  if (IS_DEMO) return;
   const q = query(collection(db,'novelGenres'), where('uid','==',currentUser.uid), orderBy('name'));
   const snap = await getDocs(q);
   if (snap.docs.length > 0) novelGenres = snap.docs.map(d => d.data().name);
@@ -1006,22 +998,18 @@ async function saveInsight(e) {
     answer: document.getElementById('insight-answer').value.trim(),
     notes: document.getElementById('insight-notes').value.trim(),
     tags: insightTags,
-    updatedAt: IS_DEMO ? new Date().toISOString() : serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
   try {
     if (id) {
-      if (!IS_DEMO) await updateDoc(doc(db,'insights',id), data);
+      await updateDoc(doc(db,'insights',id), data);
       const idx = allInsights.findIndex(i => i.id === id);
       if (idx !== -1) allInsights[idx] = { id, ...data };
       showToast('Insight 已更新');
     } else {
-      data.createdAt = IS_DEMO ? new Date().toISOString() : serverTimestamp();
-      if (!IS_DEMO) {
-        const ref = await addDoc(collection(db,'insights'), data);
-        allInsights.unshift({ id:ref.id, ...data });
-      } else {
-        allInsights.unshift({ id:'demo_'+Date.now(), ...data });
-      }
+      data.createdAt = serverTimestamp();
+      const ref = await addDoc(collection(db,'insights'), data);
+      allInsights.unshift({ id:ref.id, ...data });
       showToast('Insight 已新增');
     }
     closeModal('modal-insight-form');
@@ -1073,7 +1061,7 @@ window.deleteInsight = async (id) => {
   if (!confirm('確定刪除此 Insight？')) return;
   showLoading(true);
   try {
-    if (!IS_DEMO) await deleteDoc(doc(db,'insights',id));
+    await deleteDoc(doc(db,'insights',id));
     allInsights = allInsights.filter(i => i.id !== id);
     closeModal('modal-insight-detail');
     filterInsights(); updateAiStats(); populateFilters();
@@ -1097,12 +1085,8 @@ async function saveCat(e) {
   showLoading(true);
   try {
     const data = { uid: currentUser.uid, name };
-    if (!IS_DEMO) {
-      const ref = await addDoc(collection(db,'aiCategories'), data);
-      aiCategories.push({ id:ref.id, ...data });
-    } else {
-      aiCategories.push({ id:'demo_'+Date.now(), ...data });
-    }
+    const ref = await addDoc(collection(db,'aiCategories'), data);
+    aiCategories.push({ id:ref.id, ...data });
     closeModal('modal-cat-form');
     renderCategoryList(); populateCatSelect(); populateFilters();
     updateAiStats(); showToast('分類已新增');
@@ -1126,7 +1110,7 @@ function renderCategoryList() {
 
 window.deleteCat = async (id) => {
   if (!confirm('確定刪除此分類？')) return;
-  if (!IS_DEMO) await deleteDoc(doc(db,'aiCategories',id));
+  await deleteDoc(doc(db,'aiCategories',id));
   aiCategories = aiCategories.filter(c => c.id !== id);
   renderCategoryList(); populateCatSelect(); populateFilters();
   updateAiStats(); showToast('已刪除');
@@ -1341,12 +1325,12 @@ window.removeExistingFile = async (storagePath, idx) => {
   if (!novel) return;
   showLoading(true);
   try {
-    if (!IS_DEMO && storagePath) {
+    if (storagePath) {
       const fileRef = storageRef(storage, storagePath);
       await deleteObject(fileRef).catch(()=>{});
     }
     novel.files = (novel.files||[]).filter((_,i) => i !== idx);
-    if (!IS_DEMO) await updateDoc(doc(db,'novels',editId), { files: novel.files });
+    await updateDoc(doc(db,'novels',editId), { files: novel.files });
     renderExistingFiles(novel.files);
     showToast('檔案已刪除');
   } catch(e) { showToast('刪除失敗'); }
@@ -1354,7 +1338,7 @@ window.removeExistingFile = async (storagePath, idx) => {
 };
 
 async function uploadNovelFiles(novelId) {
-  if (!pendingNovelFiles.length || IS_DEMO) return [];
+  if (!pendingNovelFiles.length) return [];
   const uploadedFiles = [];
   for (const { file, name } of pendingNovelFiles) {
     const path = `novels/${currentUser.uid}/${novelId}/${Date.now()}_${name}`;
@@ -1424,41 +1408,27 @@ async function saveNovel(e) {
     tags: novelTags,
     platforms,
     coverUrl,
-    updatedAt: IS_DEMO ? new Date().toISOString() : serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
   try {
     let novelId = id;
     if (id) {
-      if (!IS_DEMO) await updateDoc(doc(db,'novels',id), data);
+      await updateDoc(doc(db,'novels',id), data);
       const idx = allNovels.findIndex(n => n.id === id);
       if (idx !== -1) allNovels[idx] = { id, ...data, files: existingFiles };
     } else {
-      data.createdAt = IS_DEMO ? new Date().toISOString() : serverTimestamp();
+      data.createdAt = serverTimestamp();
       data.files = [];
-      if (!IS_DEMO) {
-        const ref = await addDoc(collection(db,'novels'), data);
-        novelId = ref.id;
-        allNovels.unshift({ id:novelId, ...data });
-      } else {
-        novelId = 'demo_'+Date.now();
-        allNovels.unshift({ id:novelId, ...data });
-      }
+      const ref = await addDoc(collection(db,'novels'), data);
+      novelId = ref.id;
+      allNovels.unshift({ id:novelId, ...data });
     }
     // Upload new files
-    if (pendingNovelFiles.length && !IS_DEMO) {
+    if (pendingNovelFiles.length) {
       showToast('正在上傳檔案…');
       const newFiles = await uploadNovelFiles(novelId);
       const allFiles = [...existingFiles, ...newFiles];
       await updateDoc(doc(db,'novels',novelId), { files: allFiles });
-      const idx2 = allNovels.findIndex(n => n.id === novelId);
-      if (idx2 !== -1) allNovels[idx2].files = allFiles;
-    } else if (pendingNovelFiles.length && IS_DEMO) {
-      // Demo: store as object URLs
-      const demoFiles = pendingNovelFiles.map(pf => ({
-        name: pf.name, url: URL.createObjectURL(pf.file),
-        storagePath: '', size: pf.file.size
-      }));
-      const allFiles = [...existingFiles, ...demoFiles];
       const idx2 = allNovels.findIndex(n => n.id === novelId);
       if (idx2 !== -1) allNovels[idx2].files = allFiles;
     }
@@ -1534,7 +1504,7 @@ window.deleteNovel = async (id) => {
   if (!confirm('確定刪除此作品？')) return;
   showLoading(true);
   try {
-    if (!IS_DEMO) await deleteDoc(doc(db,'novels',id));
+    await deleteDoc(doc(db,'novels',id));
     allNovels = allNovels.filter(n => n.id !== id);
     closeModal('modal-novel-detail');
     filterNovels(); updateNovelStats(); populateFilters();
@@ -1557,7 +1527,7 @@ async function saveGenre(e) {
   if (!name || novelGenres.includes(name)) { showToast('類型已存在或名稱為空'); return; }
   showLoading(true);
   try {
-    if (!IS_DEMO) await addDoc(collection(db,'novelGenres'), { uid:currentUser.uid, name });
+    await addDoc(collection(db,'novelGenres'), { uid:currentUser.uid, name });
     novelGenres.push(name);
     closeModal('modal-genre-form');
     renderGenreList(); populateGenreSelect();
@@ -1638,25 +1608,6 @@ function fmtDate(v) {
   return dd + '/' + mm + '/' + yyyy;
 }
 
-// ══════════════════════════════
-//  DEMO SEED
-// ══════════════════════════════
-function seedDemo() {
-  aiCategories = [
-    { id:'c1', uid:'demo', name:'Python 開發' },
-    { id:'c2', uid:'demo', name:'行銷策略' },
-    { id:'c3', uid:'demo', name:'AI / ML' },
-  ];
-  allInsights = [
-    { id:'i1', uid:'demo', title:'如何用 Firebase 做 Google 登入', source:'Claude', category:'Python 開發', question:'如何在 Firebase 用 Google 登入？要怎樣設置？', answer:'1. 在 Firebase Console 啟用 Google Sign-In\n2. 安裝 firebase SDK\n3. 使用 GoogleAuthProvider 和 signInWithPopup\n\n主要步驟：\nimport { getAuth, GoogleAuthProvider, signInWithPopup } from firebase/auth\nconst auth = getAuth()\nconst provider = new GoogleAuthProvider()\nawait signInWithPopup(auth, provider)', tags:['Firebase','Auth'], notes:'已成功部署到專案中', createdAt: new Date().toISOString() },
-    { id:'i2', uid:'demo', title:'社群媒體行銷最佳做法 2024', source:'ChatGPT', category:'行銷策略', question:'2024 年 Instagram 經營策略', answer:'1. 善用 Reels，長度控制在 15-30 秒\n2. 每日更新限時動態 (Stories) 增加互動\n3. 使用相關但競爭中等的 Hashtags\n4. 統一版面色調與品牌風格\n5. 定期回覆留言與粉絲建立連結', tags:['Instagram','Marketing'], notes:'下個月套用到新帳號', createdAt: new Date(Date.now()-86400000).toISOString() },
-  ];
-  allNovels = [
-    { id:'n1', uid:'demo', title:'星際迷途', genre:'科幻', status:'writing', type:'standalone', synopsis:'一個迷失在星際間的旅人，在無盡的宇宙中尋找回家之路，邂逅形形色色的外星文明。', tags:['宇宙','冒險'], platforms:['Wattpad'], coverUrl:null, createdAt: new Date().toISOString() },
-    { id:'n2', uid:'demo', title:'龍族傳說', genre:'玄幻', status:'done', type:'series', seriesName:'上古神話三部曲', synopsis:'遠古神明與龍族的千年戰爭，一個凡人少年意外捲入神明的紛爭。', tags:['神話','史詩'], platforms:['Webnovel','晉江文學城'], coverUrl:null, createdAt: new Date(Date.now()-86400000).toISOString() },
-  ];
-  renderAll();
-}
 
 </script>
 </body>
