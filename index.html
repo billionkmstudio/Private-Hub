@@ -1357,14 +1357,14 @@ async function uploadNovelFiles(novelId) {
 }
 
 window.previewCover = (input) => {
-  if (!input.files) return;
+  if (!input.files || !input.files[0]) return;
   const reader = new FileReader();
   reader.onload = e => {
     coverDataUrl = e.target.result;
     document.getElementById('novel-cover-thumb').innerHTML = `<img src="${coverDataUrl}" style="width:100%;height:100%;object-fit:cover">`;
-    document.getElementById('novel-cover-filename').textContent = input.files.name;
+    document.getElementById('novel-cover-filename').textContent = input.files[0].name;
   };
-  reader.readAsDataURL(input.files);
+  reader.readAsDataURL(input.files[0]);
 };
 
 // Novel tag input
