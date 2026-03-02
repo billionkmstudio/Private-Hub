@@ -713,7 +713,7 @@ const firebaseConfig = {
 // ── Firebase SDK ──
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
   getFirestore, collection, doc,
@@ -752,19 +752,24 @@ let currentModule = 'ai-home';
 const ALLOWED_EMAIL = 'billionkmstudio@gmail.com';
 let appInitialized = false;
 
+// ── 登入按鈕：先嘗試 Popup，Safari 不支援時自動改用 Redirect ──
 document.getElementById('login-btn').addEventListener('click', async () => {
+  const provider = new GoogleAuthProvider();
   try {
-    const provider = new GoogleAuthProvider();
-    await signInWithRedirect(auth, provider);
-  } catch (e) { showToast('登入失敗：' + e.message); }
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    // Safari 封鎖 Popup 時改用 Redirect
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+      try {
+        await signInWithRedirect(auth, provider);
+      } catch (e2) { showToast('登入失敗：' + e2.message); }
+    } else {
+      showToast('登入失敗：' + e.message);
+    }
+  }
 });
 
-// 處理 Redirect 返回 — 只處理一次，交由 onAuthStateChanged 統一管理
-getRedirectResult(auth).catch(e => {
-  showToast('登入失敗：' + e.message);
-});
-
-// 統一入口：onAuthStateChanged 負責所有登入狀態
+// ── 統一入口：onAuthStateChanged 負責所有登入狀態 ──
 onAuthStateChanged(auth, async user => {
   if (user) {
     // 白名單檢查
