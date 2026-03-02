@@ -815,31 +815,55 @@ async function loadAll() {
   try {
     await Promise.all([loadInsights(), loadNovels(), loadCategories(), loadGenres()]);
     renderAll();
+  } catch(err) {
+    showToast('載入失敗：' + err.message);
+    console.error('loadAll error:', err);
   } finally { showLoading(false); }
 }
 
 async function loadInsights() {
-  const q = query(collection(db,'insights'), where('uid','==',currentUser.uid), orderBy('createdAt','desc'));
-  const snap = await getDocs(q);
-  allInsights = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  try {
+    const q = query(collection(db,'insights'), where('uid','==',currentUser.uid));
+    const snap = await getDocs(q);
+    allInsights = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    allInsights.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+  } catch(err) {
+    console.error('loadInsights error:', err);
+    showToast('Insights 載入失敗：' + err.message);
+    allInsights = [];
+  }
 }
 
 async function loadNovels() {
-  const q = query(collection(db,'novels'), where('uid','==',currentUser.uid), orderBy('createdAt','desc'));
-  const snap = await getDocs(q);
-  allNovels = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  try {
+    const q = query(collection(db,'novels'), where('uid','==',currentUser.uid));
+    const snap = await getDocs(q);
+    allNovels = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    allNovels.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+  } catch(err) {
+    console.error('loadNovels error:', err);
+    showToast('小說載入失敗：' + err.message);
+    allNovels = [];
+  }
 }
 
 async function loadCategories() {
-  const q = query(collection(db,'aiCategories'), where('uid','==',currentUser.uid), orderBy('name'));
-  const snap = await getDocs(q);
-  aiCategories = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  try {
+    const q = query(collection(db,'aiCategories'), where('uid','==',currentUser.uid));
+    const snap = await getDocs(q);
+    aiCategories = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    aiCategories.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  } catch(err) { console.error('loadCategories error:', err); aiCategories = []; }
 }
 
 async function loadGenres() {
-  const q = query(collection(db,'novelGenres'), where('uid','==',currentUser.uid), orderBy('name'));
-  const snap = await getDocs(q);
-  if (snap.docs.length > 0) novelGenres = snap.docs.map(d => d.data().name);
+  try {
+    const q = query(collection(db,'novelGenres'), where('uid','==',currentUser.uid));
+    const snap = await getDocs(q);
+    if (snap.docs.length > 0) {
+      novelGenres = snap.docs.map(d => d.data().name).sort();
+    }
+  } catch(err) { console.error('loadGenres error:', err); }
 }
 
 function renderAll() {
@@ -1352,7 +1376,11 @@ async function uploadNovelFiles(novelId) {
   for (const { file, name } of pendingNovelFiles) {
     const path = `novels/${currentUser.uid}/${novelId}/${Date.now()}_${name}`;
     const fileRef = storageRef(storage, path);
-    await uploadBytesResumable(fileRef, file);
+    // Properly await upload completion using Promise wrapper
+    await new Promise((resolve, reject) => {
+      const task = uploadBytesResumable(fileRef, file);
+      task.on('state_changed', null, reject, resolve);
+    });
     const url = await getDownloadURL(fileRef);
     uploadedFiles.push({ name, url, storagePath: path, size: file.size });
   }
@@ -1459,7 +1487,7 @@ async function saveNovel(e) {
     }
     // Upload new files
     if (pendingNovelFiles.length) {
-      showToast('正在上傳檔案…');
+      showToast(`正在上傳 ${pendingNovelFiles.length} 個檔案，請稍候…`);
       const newFiles = await uploadNovelFiles(novelId);
       const allFiles = [...existingFiles, ...newFiles];
       await updateDoc(doc(db,'novels',novelId), { files: allFiles });
