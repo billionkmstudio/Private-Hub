@@ -1215,11 +1215,12 @@ window.setNovelView = (v) => {
 //  NOVELS — FORM
 // ══════════════════════════════
 let coverDataUrl = null;
+let coverFileObj = null; // store original File for upload
 let pendingNovelFiles = []; // [{file, name}] - files to upload on save
 
 window.openNovelForm = (id) => {
   novelTags = [];
-  coverDataUrl = null;
+
   pendingNovelFiles = [];
   document.getElementById('novel-edit-id').value = '';
   document.getElementById('novel-form-title').textContent = '新增作品';
@@ -1230,7 +1231,9 @@ window.openNovelForm = (id) => {
   document.getElementById('type-standalone').checked = true;
   document.getElementById('series-name-group').style.display = 'none';
   document.getElementById('novel-series-name').value = '';
-  document.getElementById('novel-cover-filename').textContent = '';
+
+  coverDataUrl = null;
+  coverFileObj = null;
   document.getElementById('novel-cover-thumb').innerHTML = '書';
   document.querySelectorAll('#platforms-check input').forEach(c => c.checked = false);
   document.getElementById('novel-file-list').innerHTML = '';
@@ -1358,9 +1361,10 @@ async function uploadNovelFiles(novelId) {
 
 window.previewCover = (input) => {
   if (!input.files || !input.files[0]) return;
+  coverFileObj = input.files[0]; // store for Storage upload
   const reader = new FileReader();
   reader.onload = e => {
-    coverDataUrl = e.target.result;
+    coverDataUrl = e.target.result; // only for preview
     document.getElementById('novel-cover-thumb').innerHTML = `<img src="${coverDataUrl}" style="width:100%;height:100%;object-fit:cover">`;
     document.getElementById('novel-cover-filename').textContent = input.files[0].name;
   };
@@ -1399,7 +1403,31 @@ async function saveNovel(e) {
   showLoading(true);
   const id = document.getElementById('novel-edit-id').value;
   const existingNovel = id ? allNovels.find(n => n.id === id) : null;
-  const coverUrl = coverDataUrl || (existingNovel?.coverUrl || null);
+  
+  // ── Upload cover image to Storage (not base64 in Firestore) ──
+  let coverUrl = existingNovel?.coverUrl || null;
+  if (coverFileObj) {
+    try {
+      showToast('正在上傳封面…');
+      const ext = coverFileObj.name.split('.').pop();
+      const path = `covers/${currentUser.uid}/${Date.now()}.${ext}`;
+      const sRef = storageRef(storage, path);
+      await new Promise((resolve, reject) => {
+        const task = uploadBytesResumable(sRef, coverFileObj);
+        task.on('state_changed', null, reject, resolve);
+      });
+      coverUrl = await getDownloadURL(sRef);
+      // Delete old cover if replacing
+      if (existingNovel?.coverUrl && existingNovel.coverUrl !== coverUrl) {
+        try { await deleteObject(storageRef(storage, existingNovel.coverUrl)); } catch(_) {}
+      }
+    } catch(err) {
+      showToast('封面上傳失敗：' + err.message);
+      showLoading(false);
+      return;
+    }
+  }
+  
   const platforms = Array.from(document.querySelectorAll('#platforms-check input:checked')).map(c => c.value);
   const existingFiles = existingNovel?.files || [];
   const data = {
