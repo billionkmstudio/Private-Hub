@@ -1363,9 +1363,19 @@ async function uploadNovelFiles(novelId) {
   for (const { file, name } of pendingNovelFiles) {
     const path = `novels/${currentUser.uid}/${novelId}/${Date.now()}_${name}`;
     const fileRef = storageRef(storage, path);
+    console.log('[upload] starting:', name, file.size, 'bytes');
     await new Promise((resolve, reject) => {
       const task = uploadBytesResumable(fileRef, file);
-      task.on('state_changed', null, reject, resolve);
+      const timer = setTimeout(() => { task.cancel(); reject(new Error('上傳逾時（60秒）：' + name)); }, 60000);
+      task.on('state_changed',
+        (snap) => {
+          const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+          showToast(`上傳中 ${name}：${pct}%`);
+          console.log('[upload] progress:', pct + '%');
+        },
+        (err) => { clearTimeout(timer); console.error('[upload] error:', err.code, err.message); reject(err); },
+        () => { clearTimeout(timer); console.log('[upload] complete:', name); resolve(); }
+      );
     });
     const url = await getDownloadURL(fileRef);
     uploadedFiles.push({ name, url, storagePath: path, size: file.size });
@@ -1428,7 +1438,16 @@ async function saveNovel(e) {
       const sRef = storageRef(storage, path);
       await new Promise((resolve, reject) => {
         const task = uploadBytesResumable(sRef, coverFileObj);
-        task.on('state_changed', null, reject, resolve);
+        const timer = setTimeout(() => { task.cancel(); reject(new Error('封面上傳逾時（60秒）')); }, 60000);
+        task.on('state_changed',
+          (snap) => {
+            const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+            showToast(`上傳封面：${pct}%`);
+            console.log('[cover] progress:', pct + '%');
+          },
+          (err) => { clearTimeout(timer); console.error('[cover] error:', err.code, err.message); reject(err); },
+          () => { clearTimeout(timer); console.log('[cover] complete'); resolve(); }
+        );
       });
       coverUrl = await getDownloadURL(sRef);
       // Delete old cover if replacing
@@ -1436,7 +1455,8 @@ async function saveNovel(e) {
         try { await deleteObject(storageRef(storage, existingNovel.coverUrl)); } catch(_) {}
       }
     } catch(err) {
-      showToast('封面上傳失敗：' + err.message);
+      showToast('封面上傳失敗：' + err.code + ' — ' + err.message);
+      console.error('[cover] catch:', err);
       showLoading(false);
       return;
     }
@@ -1484,7 +1504,10 @@ async function saveNovel(e) {
     closeModal('modal-novel-form');
     filterNovels(); updateNovelStats(); populateFilters();
     showToast(id ? '作品已更新' : '作品已新增');
-  } catch(err) { showToast('儲存失敗：'+err.message); }
+  } catch(err) { 
+    showToast('儲存失敗：' + (err.code || '') + ' ' + err.message);
+    console.error('[saveNovel] error:', err);
+  }
   finally { showLoading(false); }
 }
 window.saveNovel = saveNovel;
