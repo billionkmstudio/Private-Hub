@@ -721,18 +721,21 @@ import {
   addDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import {
-  getStorage, ref as storageRef, uploadBytesResumable,
-  getDownloadURL, deleteObject
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+// ── Cloudinary (封面圖片) ──
+const CLOUDINARY_CLOUD = 'dwlyuvzt2';
+const CLOUDINARY_PRESET = 'novel_covers';
 
-let app, auth, db, storage;
+// ── Supabase (小說檔案) ──
+const SUPABASE_URL = 'https://bcvorirernntytztlvpb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjdm9yaXJlcm5udHl0enRsdnBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0Njg2MDMsImV4cCI6MjA4ODA0NDYwM30.7AQ9gfDvjp1WG1DlHjpigV33mCSJ9nLsyg7BHdKYBJ0';
+const SUPABASE_BUCKET = 'novel-files';
+
+let app, auth, db;
 let currentUser = null;
 
 app = initializeApp(firebaseConfig);
 auth = getAuth(app);
 db = getFirestore(app);
-storage = getStorage(app);
 
 // ══════════════════════════════
 //  STATE
@@ -1346,14 +1349,17 @@ window.removeExistingFile = async (storagePath, idx) => {
   showLoading(true);
   try {
     if (storagePath) {
-      const fileRef = storageRef(storage, storagePath);
-      await deleteObject(fileRef).catch(()=>{});
+      // Delete from Supabase Storage
+      await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${storagePath}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+      });
     }
     novel.files = (novel.files||[]).filter((_,i) => i !== idx);
     await updateDoc(doc(db,'novels',editId), { files: novel.files });
     renderExistingFiles(novel.files);
     showToast('檔案已刪除');
-  } catch(e) { showToast('刪除失敗'); }
+  } catch(e) { showToast('刪除失敗：' + e.message); }
   finally { showLoading(false); }
 };
 
@@ -1361,24 +1367,26 @@ async function uploadNovelFiles(novelId) {
   if (!pendingNovelFiles.length) return [];
   const uploadedFiles = [];
   for (const { file, name } of pendingNovelFiles) {
-    const path = `novels/${currentUser.uid}/${novelId}/${Date.now()}_${name}`;
-    const fileRef = storageRef(storage, path);
-    console.log('[upload] starting:', name, file.size, 'bytes');
-    await new Promise((resolve, reject) => {
-      const task = uploadBytesResumable(fileRef, file);
-      const timer = setTimeout(() => { task.cancel(); reject(new Error('上傳逾時（60秒）：' + name)); }, 60000);
-      task.on('state_changed',
-        (snap) => {
-          const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-          showToast(`上傳中 ${name}：${pct}%`);
-          console.log('[upload] progress:', pct + '%');
-        },
-        (err) => { clearTimeout(timer); console.error('[upload] error:', err.code, err.message); reject(err); },
-        () => { clearTimeout(timer); console.log('[upload] complete:', name); resolve(); }
-      );
+    const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${currentUser.uid}/${novelId}/${Date.now()}_${safeName}`;
+    showToast(`上傳中：${name}`);
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'apikey': SUPABASE_KEY,
+        'Content-Type': file.type || 'application/octet-stream',
+        'x-upsert': 'true'
+      },
+      body: file
     });
-    const url = await getDownloadURL(fileRef);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`檔案上傳失敗 (${name}): ${err}`);
+    }
+    const url = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
     uploadedFiles.push({ name, url, storagePath: path, size: file.size });
+    console.log('[supabase upload] done:', name);
   }
   return uploadedFiles;
 }
@@ -1428,35 +1436,26 @@ async function saveNovel(e) {
   const id = document.getElementById('novel-edit-id').value;
   const existingNovel = id ? allNovels.find(n => n.id === id) : null;
   
-  // ── Upload cover image to Storage (not base64 in Firestore) ──
+  // ── Upload cover to Cloudinary ──
   let coverUrl = existingNovel?.coverUrl || null;
   if (coverFileObj) {
     try {
-      showToast('正在上傳封面…');
-      const ext = coverFileObj.name.split('.').pop();
-      const path = `covers/${currentUser.uid}/${Date.now()}.${ext}`;
-      const sRef = storageRef(storage, path);
-      await new Promise((resolve, reject) => {
-        const task = uploadBytesResumable(sRef, coverFileObj);
-        const timer = setTimeout(() => { task.cancel(); reject(new Error('封面上傳逾時（60秒）')); }, 60000);
-        task.on('state_changed',
-          (snap) => {
-            const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-            showToast(`上傳封面：${pct}%`);
-            console.log('[cover] progress:', pct + '%');
-          },
-          (err) => { clearTimeout(timer); console.error('[cover] error:', err.code, err.message); reject(err); },
-          () => { clearTimeout(timer); console.log('[cover] complete'); resolve(); }
-        );
+      showToast('正在上傳封面至 Cloudinary…');
+      const formData = new FormData();
+      formData.append('file', coverFileObj);
+      formData.append('upload_preset', CLOUDINARY_PRESET);
+      formData.append('folder', `novel_covers/${currentUser.uid}`);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+        method: 'POST',
+        body: formData
       });
-      coverUrl = await getDownloadURL(sRef);
-      // Delete old cover if replacing
-      if (existingNovel?.coverUrl && existingNovel.coverUrl !== coverUrl) {
-        try { await deleteObject(storageRef(storage, existingNovel.coverUrl)); } catch(_) {}
-      }
+      if (!res.ok) throw new Error('Cloudinary 上傳失敗：' + res.status);
+      const data = await res.json();
+      coverUrl = data.secure_url;
+      console.log('[cloudinary] cover uploaded:', coverUrl);
     } catch(err) {
-      showToast('封面上傳失敗：' + err.code + ' — ' + err.message);
-      console.error('[cover] catch:', err);
+      showToast('封面上傳失敗：' + err.message);
+      console.error('[cloudinary] error:', err);
       showLoading(false);
       return;
     }
@@ -1504,10 +1503,7 @@ async function saveNovel(e) {
     closeModal('modal-novel-form');
     filterNovels(); updateNovelStats(); populateFilters();
     showToast(id ? '作品已更新' : '作品已新增');
-  } catch(err) { 
-    showToast('儲存失敗：' + (err.code || '') + ' ' + err.message);
-    console.error('[saveNovel] error:', err);
-  }
+  } catch(err) { showToast('儲存失敗：'+err.message); }
   finally { showLoading(false); }
 }
 window.saveNovel = saveNovel;
