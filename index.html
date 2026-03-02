@@ -285,7 +285,7 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
         <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
         <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
       </svg>
-      以 Google 帳號登入
+      以 Google 帳號登入 (Demo體驗)
     </button>
   </div>
 </div>
@@ -700,13 +700,12 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
 //  🔧 FIREBASE CONFIG — 請填入你的 Firebase 設定
 // ═══════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyBazCuHFlT13pCcqQDcoyn0eGoe1BufBd8",
-  authDomain: "private-hub-1497f.firebaseapp.com",
-  projectId: "private-hub-1497f",
-  storageBucket: "private-hub-1497f.firebasestorage.app",
-  messagingSenderId: "727142558102",
-  appId: "1:727142558102:web:c7864d8980436731ead5b7",
-  measurementId: "G-K2ZJNCZT4C"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 const IS_DEMO = firebaseConfig.apiKey === "YOUR_API_KEY";
@@ -754,36 +753,48 @@ let currentModule = 'ai-home';
 // ══════════════════════════════
 //  AUTH
 // ══════════════════════════════
+const ALLOWED_EMAIL = 'billionkmstudio@gmail.com';
+let appInitialized = false;
+
 document.getElementById('login-btn').addEventListener('click', async () => {
-  if (IS_DEMO) {
-    currentUser = { uid: 'demo', displayName: '訪客體驗帳號', photoURL: '' };
-    showApp(); seedDemo(); return;
-  }
   try {
     const provider = new GoogleAuthProvider();
     await signInWithRedirect(auth, provider);
   } catch (e) { showToast('登入失敗：' + e.message); }
 });
 
-// 處理 Redirect 返回結果
-if (!IS_DEMO) {
-  getRedirectResult(auth).then(result => {
-    if (result && result.user) {
-      currentUser = result.user;
-      showApp(); loadAll();
-    }
-  }).catch(e => { showToast('登入失敗：' + e.message); });
-}
+// 處理 Redirect 返回 — 只處理一次，交由 onAuthStateChanged 統一管理
+getRedirectResult(auth).catch(e => {
+  showToast('登入失敗：' + e.message);
+});
 
-if (!IS_DEMO) {
-  onAuthStateChanged(auth, user => {
-    if (user) { currentUser = user; showApp(); loadAll(); }
-    else { document.getElementById('login-screen').style.display = 'flex'; document.getElementById('app').style.display = 'none'; }
-  });
-}
+// 統一入口：onAuthStateChanged 負責所有登入狀態
+onAuthStateChanged(auth, async user => {
+  if (user) {
+    // 白名單檢查
+    if (user.email !== ALLOWED_EMAIL) {
+      await signOut(auth);
+      showToast('此帳號無權限登入');
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+      return;
+    }
+    // 防止重複初始化
+    if (appInitialized) return;
+    appInitialized = true;
+    currentUser = user;
+    showApp();
+    loadAll();
+  } else {
+    appInitialized = false;
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
 
 window.logout = async () => {
-  if (!IS_DEMO) await signOut(auth);
+  appInitialized = false;
+  await signOut(auth);
   location.reload();
 };
 
