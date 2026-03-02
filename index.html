@@ -59,6 +59,7 @@ body { font-family: 'Noto Serif TC', serif; background: var(--bg); color: var(--
 .nav-item.active.ai-nav { border-left-color: var(--accent-ai); color: var(--accent-ai); }
 .nav-item.active.novel-nav { border-left-color: var(--accent-novel); color: var(--accent-novel); }
 .nav-icon { font-size: 1.2rem; opacity:0.7; transition: opacity 0.2s; }
+.nav-icon img { width: 22px; height: 22px; object-fit: contain; display: block; }
 .nav-item:hover .nav-icon, .nav-item.active .nav-icon { opacity: 1; filter: grayscale(0%); }
 .nav-badge { margin-left:auto; padding: 2px 8px; font-family: 'JetBrains Mono', monospace; font-size: .7rem; font-weight: 600; border-radius: 12px; }
 .nav-badge.ai { background: var(--accent-ai-dim); color: var(--accent-ai); }
@@ -299,23 +300,23 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
     <div class="sidebar-nav">
       <div class="nav-section-label">AI Insights</div>
       <div class="nav-item ai-nav active" onclick="showModule('ai-home')" data-module="ai-home">
-        <span class="nav-icon">🧠</span>
+        <span class="nav-icon"><img src="AI_Insights.jpg" alt="AI Insights"></span>
         <span>所有 Insights</span>
         <span class="nav-badge ai" id="nav-ai-count">0</span>
       </div>
       <div class="nav-item ai-nav" onclick="showModule('ai-cats')" data-module="ai-cats">
-        <span class="nav-icon">🏷️</span>
+        <span class="nav-icon"><img src="Classification.jpg" alt="分類管理"></span>
         <span>分類管理</span>
       </div>
 
       <div class="nav-section-label" style="margin-top:24px">小說管理</div>
       <div class="nav-item novel-nav" onclick="showModule('novel-home')" data-module="novel-home">
-        <span class="nav-icon">📚</span>
+        <span class="nav-icon"><img src="Novel.jpg" alt="作品圖書館"></span>
         <span>作品圖書館</span>
         <span class="nav-badge novel" id="nav-novel-count">0</span>
       </div>
       <div class="nav-item novel-nav" onclick="showModule('novel-genres')" data-module="novel-genres">
-        <span class="nav-icon">🔖</span>
+        <span class="nav-icon"><img src="Classification.jpg" alt="類型管理"></span>
         <span>類型管理</span>
       </div>
     </div>
