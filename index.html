@@ -58,10 +58,8 @@ body { font-family: 'Noto Serif TC', serif; background: var(--bg); color: var(--
 .nav-item.active { color: var(--text); background: var(--surface2); font-weight: 600; }
 .nav-item.active.ai-nav { border-left-color: var(--accent-ai); color: var(--accent-ai); }
 .nav-item.active.novel-nav { border-left-color: var(--accent-novel); color: var(--accent-novel); }
-.nav-icon { font-size: 1.2rem; opacity:0.7; transition: opacity 0.2s; display:flex; align-items:center; }
-.nav-icon img { width:22px; height:22px; object-fit:contain; filter:grayscale(40%) opacity(0.7); transition: filter 0.2s; }
+.nav-icon { font-size: 1.2rem; opacity:0.7; transition: opacity 0.2s; }
 .nav-item:hover .nav-icon, .nav-item.active .nav-icon { opacity: 1; filter: grayscale(0%); }
-.nav-item:hover .nav-icon img, .nav-item.active .nav-icon img { filter: grayscale(0%) opacity(1); }
 .nav-badge { margin-left:auto; padding: 2px 8px; font-family: 'JetBrains Mono', monospace; font-size: .7rem; font-weight: 600; border-radius: 12px; }
 .nav-badge.ai { background: var(--accent-ai-dim); color: var(--accent-ai); }
 .nav-badge.novel { background: var(--accent-novel-dim); color: var(--accent-novel); }
@@ -301,23 +299,23 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
     <div class="sidebar-nav">
       <div class="nav-section-label">AI Insights</div>
       <div class="nav-item ai-nav active" onclick="showModule('ai-home')" data-module="ai-home">
-        <span class="nav-icon"><img src="AI_Insights.jpg" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;filter:grayscale(30%);" alt="AI Insights"></span>
+        <span class="nav-icon">🧠</span>
         <span>所有 Insights</span>
         <span class="nav-badge ai" id="nav-ai-count">0</span>
       </div>
       <div class="nav-item ai-nav" onclick="showModule('ai-cats')" data-module="ai-cats">
-        <span class="nav-icon"><img src="Classification.jpg" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;filter:grayscale(30%);" alt="分類"></span>
+        <span class="nav-icon">🏷️</span>
         <span>分類管理</span>
       </div>
 
       <div class="nav-section-label" style="margin-top:24px">小說管理</div>
       <div class="nav-item novel-nav" onclick="showModule('novel-home')" data-module="novel-home">
-        <span class="nav-icon"><img src="Novel.jpg" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;filter:grayscale(30%);" alt="小說"></span>
+        <span class="nav-icon">📚</span>
         <span>作品圖書館</span>
         <span class="nav-badge novel" id="nav-novel-count">0</span>
       </div>
       <div class="nav-item novel-nav" onclick="showModule('novel-genres')" data-module="novel-genres">
-        <span class="nav-icon"><img src="Classification.jpg" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;filter:grayscale(30%);" alt="類型"></span>
+        <span class="nav-icon">🔖</span>
         <span>類型管理</span>
       </div>
     </div>
@@ -702,13 +700,12 @@ textarea.form-control { resize:vertical; min-height:120px; line-height: 1.6; }
 //  🔧 FIREBASE CONFIG — 請填入你的 Firebase 設定
 // ═══════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyBazCuHFlT13pCcqQDcoyn0eGoe1BufBd8",
-  authDomain: "private-hub-1497f.firebaseapp.com",
-  projectId: "private-hub-1497f",
-  storageBucket: "private-hub-1497f.firebasestorage.app",
-  messagingSenderId: "727142558102",
-  appId: "1:727142558102:web:c7864d8980436731ead5b7",
-  measurementId: "G-K2ZJNCZT4C"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 const IS_DEMO = firebaseConfig.apiKey === "YOUR_API_KEY";
@@ -716,7 +713,7 @@ const IS_DEMO = firebaseConfig.apiKey === "YOUR_API_KEY";
 // ── Firebase SDK ──
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
   getFirestore, collection, doc,
@@ -763,9 +760,19 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   }
   try {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    await signInWithRedirect(auth, provider);
   } catch (e) { showToast('登入失敗：' + e.message); }
 });
+
+// 處理 Redirect 返回結果
+if (!IS_DEMO) {
+  getRedirectResult(auth).then(result => {
+    if (result && result.user) {
+      currentUser = result.user;
+      showApp(); loadAll();
+    }
+  }).catch(e => { showToast('登入失敗：' + e.message); });
+}
 
 if (!IS_DEMO) {
   onAuthStateChanged(auth, user => {
